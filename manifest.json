@@ -1,0 +1,18 @@
+{
+    "manifest_version": 2,
+    "content_security_policy": "default-src 'self'; script-src 'self' https://ajax.googleapis.com 'unsafe-eval'; style-src * 'unsafe-inline';",
+    "name": "Swagger Preview",
+    "description": "透過 swagger 預覽 github api",
+    "version": "1.0.0",
+    "icons": {
+      "128": "swaggerIcon.png"
+    },
+    "browser_action": {
+      "default_icon": "swaggerIcon.png",
+      "default_popup": "popup.html"
+    },
+    "permissions": [
+      "tabs"
+    ]
+  }
+  
