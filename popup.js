@@ -18,7 +18,8 @@ const app = Vue.createApp({
         getSelect: async function() {
             chrome.tabs.getSelected(null, function(tab) {
                 vm.tabLink = tab.url;
-                vm.create();
+                // vm.create();
+                vm.update();
             });
         },
         create: function() {
@@ -26,6 +27,11 @@ const app = Vue.createApp({
                 url: "https://petstore.swagger.io/?url=" + encodeURIComponent(this.tabLink)
             });
         },
+        update: function() {
+            chrome.tabs.update({
+                url: "https://petstore.swagger.io/?url=" + encodeURIComponent(this.tabLink)
+            });
+        }
     },
 });
 const vm = app.mount('#app');    
