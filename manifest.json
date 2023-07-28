@@ -7,9 +7,13 @@
     "icons": {
       "128": "swaggerIcon.png"
     },
+    "background": {
+        "scripts": [
+            "vue.min.js",
+            "popup.js"
+        ]
+    },
     "browser_action": {
-      "default_icon": "swaggerIcon.png",
-      "default_popup": "popup.html"
     },
     "permissions": [
       "tabs"

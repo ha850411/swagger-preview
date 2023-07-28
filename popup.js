@@ -1,39 +1,11 @@
-const app = Vue.createApp({
-    data() {
-        return {
-            tabLink: "",
-        }
-    },
-    mounted() {
-        this.preview();
-    },
-    watch: {
-    },
-    computed: {
-    },
-    methods: {
-        preview: function() {
-            this.getSelect();
-        },
-        getSelect: async function() {
-            chrome.tabs.getSelected(null, function(tab) {
-                vm.tabLink = tab.url;
-                // vm.create();
-                vm.update();
-            });
-        },
-        create: function() {
-            chrome.tabs.create({
-                url: "https://petstore.swagger.io/?url=" + encodeURIComponent(this.tabLink)
-            });
-        },
-        update: function() {
+chrome.browserAction.onClicked.addListener((tab) => {
+    chrome.tabs.getSelected(null, function(tab) {
+        let url = tab.url;
+        if(url.match(/raw\.githubusercontent\.com/gi) !== null) {
             chrome.tabs.update({
-                url: "https://petstore.swagger.io/?url=" + encodeURIComponent(this.tabLink)
+                url: "https://petstore.swagger.io/?url=" + encodeURIComponent(tab.url)
             });
         }
-    },
+    });
 });
-const vm = app.mount('#app');    
-
 
