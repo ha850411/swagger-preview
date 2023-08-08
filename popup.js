@@ -1,6 +1,5 @@
 // 自動監聽 main_frame 的網址並轉址
 chrome.webRequest.onSendHeaders.addListener(function(detail){
-    console.log(detail);
     if(detail.url.match(/^https?:\/\/raw\.githubusercontent\.com.*\.(yaml|json)/gi) !== null) {
         chrome.tabs.update( detail.tabId,{
             url: "https://petstore.swagger.io/?url=" + encodeURIComponent(detail.url)
