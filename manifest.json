@@ -15,7 +15,10 @@
     "browser_action": {
     },
     "permissions": [
-      "tabs"
+      "tabs",
+      "webRequest",
+      "webRequestBlocking",
+      "<all_urls>"
     ]
   }
   
