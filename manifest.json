@@ -1,24 +1,27 @@
 {
-    "manifest_version": 2,
-    "content_security_policy": "default-src 'self'; script-src 'self' https://ajax.googleapis.com 'unsafe-eval'; style-src * 'unsafe-inline';",
+    "manifest_version": 3,
     "name": "Swagger Preview",
-    "description": "透過 swagger 預覽 github api",
-    "version": "1.0.0",
+    "version": "1.0",
+    "description": "透過 swagger 預覽 GitHub API",
     "icons": {
-      "128": "swaggerIcon.png"
+        "128": "swaggerIcon.png"
+    },
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "128": "swaggerIcon.png"
+        }
     },
     "background": {
-        "scripts": [
-            "popup.js"
-        ]
-    },
-    "browser_action": {
+        "service_worker": "background.js"
     },
     "permissions": [
-      "tabs",
-      "webRequest",
-      "webRequestBlocking",
-      "<all_urls>"
-    ]
-  }
-  
+        "tabs", "webRequest", "webRequestBlocking", "storage"
+    ],
+    "host_permissions": [
+         "*://raw.githubusercontent.com/*"
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    }
+}

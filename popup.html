@@ -1,16 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-tw">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>swagger preview</title>
+<meta charset="UTF-8">
+<title>swagger preview</title>
+<style>
+    body {
+        width: 180px;
+        margin: 0px;
+        text-align: left;
+    }
+
+    .title {
+        padding: 5px;
+        width: 100%;
+        font-size: 18px;
+        font-weight: bold;
+        background-color: #FFFFFF;
+    }
+
+    .content {
+        padding: 5px;
+        width: 100%;
+        font-size: 16px;
+        background-color:#d9d4d4;
+    }
+
+    .itemGroup {
+        display: flex !important;
+        align-items: center !important; 
+    }
+
+    #swaggerBtn {
+        width: 155px;
+        background-color: black;
+        cursor: pointer;
+        display: flex !important;
+        align-items: center !important;  
+        padding: 3px 5px;
+        margin-bottom: 8px;
+        border-radius: 5px;
+    }
+</style>
 </head>
-<body style="display: none;">
+<body>
+    <div class="title">Swagger Preview</div>
+    <div class="content">
+        <!-- open btn -->
+        <div id="swaggerBtn">
+            <img src="./swaggerIcon.png" style="width:20px; margin-right: 5px;">
+            <span style="color: #FFFFFF;">透過swagger開啟</span>
+        </div>
 
-<div id="app"></div>
+        <!-- autoDetect -->
+        <div class="itemGroup">
+            <input type="checkbox" 
+            style="width:15px; height: 15px;"
+            id="autoDetect" 
+            value="1" >
+            <label for="autoDetect">自動偵測</label>
+        </div>
+    </div>
 
-<script src="./vue.min.js"></script>
-<script src="./popup.js"></script>
+<script src="./eventHandler.js"></script>
+<script src="./popup.js" type="module"></script>
 </body>
 </html>
