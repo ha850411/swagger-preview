@@ -11,7 +11,6 @@ function handleButtonChange(btnValue)
  */
 function swaggerBtnHandler()
 {
-    console.log('click');
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         var currentTab = tabs[0];
         let url = currentTab.url;
