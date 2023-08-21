@@ -1,0 +1,46 @@
+openapi: 3.0.0
+info:
+  title: Sample API
+  version: 1.0.0
+paths:
+  /hello:
+    get:
+      summary: Retrieve a greeting message
+      parameters:
+        - name: name
+          in: query
+          description: Your name
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              example:
+                message: Hello, {name}!
+
+  /greetings:
+    post:
+      summary: Create a personalized greeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+              required:
+                - name
+            example:
+              name: John
+      responses:
+        '201':
+          description: Greeting created successfully
+          content:
+            application/json:
+              example:
+                message: Hello, {name}! Welcome!
