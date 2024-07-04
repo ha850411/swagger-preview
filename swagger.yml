@@ -24,16 +24,16 @@ paths:
                   description: 公司編號
                   example: "1046587000"
                 empNo:
-                  type: string
+                  type: integer
                   description: 員工編號 AP帶入0
-                  example: "0"
+                  example: 0
                 delAdditional:
-                  type: string
+                  type: integer
                   description: |-
                     - 是否同步耗用加值產品
                     - 1 : 是
                     - 0 : 否
-                  example: "0"
+                  example: 0
                 reason:
                   type: string
                   description: 關閉廣告原因
