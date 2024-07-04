@@ -1,0 +1,71 @@
+openapi: 3.0.0
+info:
+  title: 關閉廣告
+  version: 1.0.0
+paths:
+  /company/closeAdPeriod:
+    post:
+      summary: 關閉廣告
+      description: 關閉廣告API
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - custNo
+                - empNo
+                - delAdditional
+                - reason
+                - remark
+              properties:
+                custNo:
+                  type: string
+                  description: 公司編號
+                  example: "1046587000"
+                empNo:
+                  type: string
+                  description: 員工編號 AP帶入0
+                  example: "0"
+                delAdditional:
+                  type: string
+                  description: |-
+                    - 是否同步耗用加值產品
+                    - 1 : 是
+                    - 0 : 否
+                  example: "0"
+                reason:
+                  type: string
+                  description: 關閉廣告原因
+                  example: "原因XXXX"
+                remark:
+                  type: string
+                  description: 關閉廣告備註
+                  example: "備註XXX"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "success"
+                  detail:
+                    type: string
+                    example: ""
+        '500':
+          description: 錯誤
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error."
+                  detail:
+                    type: string
+                    example: "this is something detail about error."
