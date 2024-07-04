@@ -5,7 +5,7 @@ chrome.webRequest.onSendHeaders.addListener(
             let autoDetectFlag = result?.["autoDetectFlag"] || false;
             if(
                 autoDetectFlag && 
-                detail.url.match(/^https?:\/\/raw\.githubusercontent\.com.*\.(yaml|json)/gi) !== null
+                detail.url.match(/^https?:\/\/raw\.githubusercontent\.com.*\.(yaml|yml|json)/gi) !== null
             ) {
                 chrome.tabs.update( detail.tabId,{
                     url: "https://petstore.swagger.io/?url=" + encodeURIComponent(detail.url)
