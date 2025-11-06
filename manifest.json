@@ -16,9 +16,12 @@
         "service_worker": "background.js"
     },
     "permissions": [
-        "tabs", "webRequest", "storage"
+        "storage",
+        "scripting",
+        "activeTab",
+        "webRequest"
     ],
     "host_permissions": [
-         "*://raw.githubusercontent.com/*"
+        "<all_urls>"
     ]
 }
