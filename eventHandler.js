@@ -1,3 +1,5 @@
+const RAW_SWAGGER_REGEX = /^https?:\/\/raw\.githubusercontent\.com.*\.(yaml|yml|json)/i;
+
 /**
  * 設定自動偵測的值
  */
@@ -12,8 +14,14 @@ function handleButtonChange(btnValue)
 function swaggerBtnHandler()
 {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-        var currentTab = tabs[0];
-        let url = currentTab.url;
+        const currentTab = tabs[0];
+        const url = currentTab.url;
+        if (RAW_SWAGGER_REGEX.test(url)) {
+            const loadingUrl = chrome.runtime.getURL('loading.html') +
+                '?source=' + encodeURIComponent(url);
+            chrome.tabs.update(currentTab.id, { url: loadingUrl, active: true });
+            return;
+        }
         copyPageContentAndRender(url, currentTab.id);
     });
 }

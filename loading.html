@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>正在載入 Swagger</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0b1724;
+            color: #e8f0fb;
+            font-family: Arial, sans-serif;
+        }
+
+        .card {
+            padding: 24px 28px;
+            background: #122033;
+            border: 1px solid #1f3350;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+            width: 320px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 5px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #4fd1c5;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: spin 0.9s linear infinite;
+        }
+
+        h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+        }
+
+        p {
+            margin: 0;
+            font-size: 14px;
+            color: #c3d4ef;
+        }
+
+        .error {
+            color: #ffb4b4;
+            margin-top: 12px;
+            white-space: pre-wrap;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <div class="spinner"></div>
+        <h2>Loading...</h2>
+        <p id="msg">Preparing your Swagger preview</p>
+        <div id="error" class="error" style="display:none;"></div>
+    </div>
+    <script src="loading.js"></script>
+</body>
+
+</html>
