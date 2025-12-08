@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Swagger Preview",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "description": "透過 swagger 預覽 GitHub API",
     "icons": {
         "128": "swaggerIcon.png"
