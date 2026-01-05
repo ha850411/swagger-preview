@@ -64,7 +64,7 @@ window.onload = function() {
                 deepLinking: true,
                 presets: [
                     SwaggerUIBundle.presets.apis,
-                    SwaggerUIBundle.presets.standalone
+                    SwaggerUIStandalonePreset
                 ],
                 plugins: [
                     SwaggerUIBundle.plugins.DownloadUrl
