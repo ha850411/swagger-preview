@@ -64,6 +64,99 @@
     }
 
     /**
+     * 確保全域注入原生風格按鈕樣式（完全繼承 GitHub Primer 變數與 Raw 配色）
+     */
+    function ensureButtonStyles() {
+        if (document.getElementById('sp-btn-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'sp-btn-styles';
+        style.textContent = `
+            #sp-github-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 3px 10px;
+                font-size: 12px;
+                font-weight: 500;
+                line-height: 20px;
+                font-family: inherit;
+                cursor: pointer;
+                user-select: none;
+                margin-right: 6px;
+                border-radius: 6px;
+                vertical-align: middle;
+                box-sizing: border-box;
+                text-decoration: none;
+                transition: 80ms cubic-bezier(0.33, 1, 0.68, 1);
+                
+                /* 優先採用 GitHub Primer 設計系統變數，次之使用自 rawAnchor 動態萃取之配色，最後提供安全備援 */
+                color: var(--button-default-fgColor-rest, var(--control-fgColor-rest, var(--sp-btn-raw-color, inherit)));
+                background-color: var(--button-default-bgColor-rest, var(--control-bgColor-rest, var(--sp-btn-raw-bg, #212830)));
+                border: 1px solid var(--button-default-borderColor-rest, var(--control-borderColor-rest, var(--sp-btn-raw-border, rgba(240, 246, 252, 0.1))));
+                box-shadow: var(--button-default-shadow-resting, 0 1px 0 rgba(31, 35, 40, 0.04));
+            }
+
+            #sp-github-btn:hover {
+                color: var(--button-default-fgColor-hover, var(--control-fgColor-hover, var(--button-default-fgColor-rest, var(--control-fgColor-rest, inherit))));
+                background-color: var(--button-default-bgColor-hover, var(--control-bgColor-hover, var(--sp-btn-raw-hover-bg, rgba(255, 255, 255, 0.08))));
+                border-color: var(--button-default-borderColor-hover, var(--control-borderColor-hover, var(--sp-btn-raw-hover-border, rgba(255, 255, 255, 0.2))));
+                text-decoration: none;
+            }
+
+            #sp-github-btn:active {
+                background-color: var(--button-default-bgColor-active, var(--control-bgColor-active, rgba(255, 255, 255, 0.12)));
+            }
+
+            #sp-github-btn:focus-visible {
+                outline: 2px solid var(--focus-outlineColor, #0969da);
+                outline-offset: -2px;
+            }
+        `;
+        document.head ? document.head.appendChild(style) : document.documentElement.appendChild(style);
+    }
+
+    /**
+     * 動態自 Raw 按鈕提取色彩與文字規格，確保深淺色與各類主題 100% 契合
+     */
+    function syncWithRawAnchor(btn, rawAnchor) {
+        if (!rawAnchor || !btn) return;
+        try {
+            const rawStyle = window.getComputedStyle(rawAnchor);
+            if (!rawStyle) return;
+
+            const bg = rawStyle.backgroundColor;
+            const color = rawStyle.color;
+            const borderColor = rawStyle.borderTopColor || rawStyle.borderColor;
+
+            if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
+                btn.style.setProperty('--sp-btn-raw-bg', bg);
+                // 自動計算明度以設定備援 hover 效果
+                const rgb = bg.match(/\d+/g);
+                if (rgb && rgb.length >= 3) {
+                    const brightness = (Number(rgb[0]) * 299 + Number(rgb[1]) * 587 + Number(rgb[2]) * 114) / 1000;
+                    if (brightness > 128) {
+                        btn.style.setProperty('--sp-btn-raw-hover-bg', '#f3f4f6');
+                        btn.style.setProperty('--sp-btn-raw-hover-border', 'rgba(31, 35, 40, 0.2)');
+                    } else {
+                        btn.style.setProperty('--sp-btn-raw-hover-bg', '#262c36');
+                        btn.style.setProperty('--sp-btn-raw-hover-border', '#8b949e');
+                    }
+                }
+            }
+            if (color && color !== 'transparent') {
+                btn.style.setProperty('--sp-btn-raw-color', color);
+            }
+            if (borderColor && borderColor !== 'transparent' && borderColor !== 'rgba(0, 0, 0, 0)') {
+                btn.style.setProperty('--sp-btn-raw-border', borderColor);
+            }
+            if (rawStyle.fontSize) btn.style.fontSize = rawStyle.fontSize;
+            if (rawStyle.lineHeight) btn.style.lineHeight = rawStyle.lineHeight;
+        } catch (e) {
+            // safe fallback to CSS variables
+        }
+    }
+
+    /**
      * 注入 GitHub 原生風格按鈕
      */
     function injectButton() {
@@ -73,12 +166,13 @@
         }
 
         const rawAnchor = findRawAnchor();
-        const existingBtn = document.getElementById('sp-github-btn');
         const texts = getTexts();
 
         if (rawAnchor) {
-            if (!existingBtn) {
-                const btn = document.createElement('button');
+            ensureButtonStyles();
+            let btn = document.getElementById('sp-github-btn');
+            if (!btn) {
+                btn = document.createElement('button');
                 btn.id = 'sp-github-btn';
                 btn.type = 'button';
                 btn.title = texts.swaggerBtnTooltip;
@@ -86,40 +180,10 @@
                 const iconUrl = chrome.runtime.getURL('swaggerIcon.png');
                 btn.innerHTML = `
                     <span style="display: inline-flex; align-items: center; gap: 5px;">
-                        <img src="${iconUrl}" style="width: 14px; height: 14px; vertical-align: middle;" alt="Swagger" />
+                        <img src="${iconUrl}" style="width: 14px; height: 14px; vertical-align: middle; flex-shrink: 0;" alt="Swagger" />
                         <span id="sp-btn-label">${texts.swaggerBtnText}</span>
                     </span>
                 `;
-
-                // 採用 GitHub Primer 按鈕風格樣式（避免受 GitHub 內部 class 改版影響）
-                Object.assign(btn.style, {
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '3px 10px',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    lineHeight: '20px',
-                    color: '#24292f',
-                    backgroundColor: '#f6f8fa',
-                    border: '1px solid rgba(31,35,40,0.15)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    marginRight: '6px',
-                    transition: '80ms cubic-bezier(0.33, 1, 0.68, 1)',
-                    verticalAlign: 'middle',
-                    boxShadow: '0 1px 0 rgba(31,35,40,0.04)'
-                });
-
-                btn.addEventListener('mouseenter', () => {
-                    btn.style.backgroundColor = '#f3f4f6';
-                    btn.style.borderColor = 'rgba(31,35,40,0.2)';
-                });
-                btn.addEventListener('mouseleave', () => {
-                    btn.style.backgroundColor = '#f6f8fa';
-                    btn.style.borderColor = 'rgba(31,35,40,0.15)';
-                });
 
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -127,15 +191,20 @@
                     toggleDrawer();
                 });
 
-                const parent = rawAnchor.parentElement;
+                // 若 rawAnchor 隸屬於按鈕群組，將 Swagger 按鈕插在群組前，保持群組圓角完整
+                const btnGroup = rawAnchor.closest('[data-component="ButtonGroup"], .BtnGroup');
+                const targetElement = btnGroup || rawAnchor;
+                const parent = targetElement.parentElement;
                 if (parent) {
-                    parent.insertBefore(btn, rawAnchor);
+                    parent.insertBefore(btn, targetElement);
                 }
             } else {
-                existingBtn.title = texts.swaggerBtnTooltip;
-                const label = existingBtn.querySelector('#sp-btn-label');
+                btn.title = texts.swaggerBtnTooltip;
+                const label = btn.querySelector('#sp-btn-label');
                 if (label) label.textContent = texts.swaggerBtnText;
             }
+
+            syncWithRawAnchor(btn, rawAnchor);
             removeFloatingButton();
         } else {
             injectFloatingButton();
@@ -203,6 +272,8 @@
     function removeInjectedElements() {
         const btn = document.getElementById('sp-github-btn');
         if (btn) btn.remove();
+        const style = document.getElementById('sp-btn-styles');
+        if (style) style.remove();
         removeFloatingButton();
     }
 
@@ -476,6 +547,7 @@
         document.body.appendChild(drawerHost);
 
         bindDrawerEvents();
+        applyDrawerWidth(drawerState.widthPercent);
     }
 
     /**
@@ -527,6 +599,77 @@
     }
 
     /**
+     * 套用並更新抽屜寬度與按鈕狀態
+     */
+    function applyDrawerWidth(percent) {
+        const clamped = Math.max(20, Math.min(96, parseInt(percent, 10) || 50));
+        drawerState.widthPercent = clamped;
+        if (!shadowRoot) return;
+        const drawer = shadowRoot.getElementById('sp-drawer');
+        if (drawer) {
+            drawer.style.width = clamped + 'vw';
+        }
+        updateActiveWidthButton(clamped);
+    }
+
+    /**
+     * 儲存使用者的百分比設定至 storage
+     */
+    function saveDrawerWidth(percent) {
+        const clamped = Math.max(20, Math.min(96, parseInt(percent, 10) || 50));
+        drawerState.widthPercent = clamped;
+        try {
+            chrome.storage.sync.set({ drawerWidthPercent: clamped }, () => {
+                if (chrome.runtime.lastError) {
+                    chrome.storage.local.set({ drawerWidthPercent: clamped });
+                }
+            });
+        } catch (e) {
+            try {
+                chrome.storage.local.set({ drawerWidthPercent: clamped });
+            } catch (_) {}
+        }
+    }
+
+    /**
+     * 從 storage 讀取已儲存的寬度百分比
+     */
+    function loadSavedDrawerWidth(callback) {
+        try {
+            chrome.storage.sync.get(['drawerWidthPercent'], (result) => {
+                if (!chrome.runtime.lastError && result && result.drawerWidthPercent) {
+                    applyDrawerWidth(result.drawerWidthPercent);
+                    if (callback) callback(result.drawerWidthPercent);
+                } else {
+                    chrome.storage.local.get(['drawerWidthPercent'], (resLocal) => {
+                        const val = resLocal?.drawerWidthPercent || drawerState.widthPercent || 50;
+                        applyDrawerWidth(val);
+                        if (callback) callback(val);
+                    });
+                }
+            });
+        } catch (e) {
+            if (callback) callback(drawerState.widthPercent);
+        }
+    }
+
+    /**
+     * 直觀分段寬度切換按鈕高亮同步
+     */
+    function updateActiveWidthButton(currentPercent) {
+        if (!shadowRoot) return;
+        const widthItems = shadowRoot.querySelectorAll('.sp-width-item');
+        widthItems.forEach(btn => {
+            const target = parseInt(btn.dataset.width, 10);
+            if (Math.abs(target - currentPercent) <= 4 || (target === 96 && currentPercent >= 92)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    /**
      * 綁定抽屜互動事件（關閉、寬度切換、拖曳調整、Esc鍵）
      */
     function bindDrawerEvents() {
@@ -557,24 +700,12 @@
             });
         });
 
-        // 直觀分段寬度切換功能
-        function updateActiveWidthButton(currentPercent) {
-            widthItems.forEach(btn => {
-                const target = parseInt(btn.dataset.width, 10);
-                if (Math.abs(target - currentPercent) <= 4 || (target === 96 && currentPercent >= 92)) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-        }
-
+        // 點擊預設比例（50%、75%、100%）並記住設定
         widthItems.forEach(btn => {
             btn.addEventListener('click', () => {
                 const targetWidth = parseInt(btn.dataset.width, 10);
-                drawerState.widthPercent = targetWidth;
-                drawer.style.width = targetWidth + 'vw';
-                updateActiveWidthButton(targetWidth);
+                applyDrawerWidth(targetWidth);
+                saveDrawerWidth(targetWidth);
             });
         });
 
@@ -609,6 +740,11 @@
             drawer.style.transition = '';
             iframe.style.pointerEvents = 'auto';
             document.body.style.userSelect = '';
+            if (drawerState.widthPercent) {
+                // 將拖曳出的寬度百分比標準化並持久化記住
+                drawer.style.width = drawerState.widthPercent + 'vw';
+                saveDrawerWidth(drawerState.widthPercent);
+            }
         });
 
         // 監聽 iframe ready postMessage
@@ -747,11 +883,14 @@
         }
     });
 
-    // 監聽語言設定變更，即時更新介面文字
+    // 監聽語言與抽屜寬度設定變更，即時跨分頁同步
     chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'sync' && changes.language) {
+        if (changes.language) {
             currentLang = changes.language.newValue;
             updateI18nLabels();
+        }
+        if (changes.drawerWidthPercent) {
+            applyDrawerWidth(changes.drawerWidthPercent.newValue);
         }
     });
 
@@ -779,6 +918,9 @@
         }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // 預先載入已記憶之抽屜寬度設定
+    loadSavedDrawerWidth();
 
     // 初始化語言並執行導航偵測
     if (typeof getSwaggerLocale === 'function') {
