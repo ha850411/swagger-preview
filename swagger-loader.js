@@ -1,4 +1,5 @@
 let swaggerI18nTexts = (typeof SWAGGER_I18N !== 'undefined') ? SWAGGER_I18N.zh : {};
+let renderSequence = 0;
 
 window.onload = function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -20,10 +21,21 @@ window.onload = function() {
 function initLoader(storageKey, isDrawer) {
     // 抽屜模式：通知父層容器 iframe 已就緒，透過 postMessage 接收 spec
     if (isDrawer) {
+        let latestLoadId = 0;
         window.addEventListener('message', function(event) {
-            if (event.data?.type === 'LOAD_SPEC' && event.data.content) {
-                renderSpec(event.data.content, event.data.url || 'Unknown', true);
-            }
+            if (event.source !== window.parent || !/^https?:\/\/github\.com$/.test(event.origin)) return;
+            const data = event.data;
+            if (data?.type !== 'LOAD_SPEC' || typeof data.content !== 'string' ||
+                !Number.isSafeInteger(data.loadId) || data.loadId <= latestLoadId) return;
+            latestLoadId = data.loadId;
+            const notify = (type, message) => {
+                if (data.loadId !== latestLoadId) return;
+                window.parent.postMessage({ type, loadId: data.loadId, message }, event.origin);
+            };
+            renderSpec(data.content, data.url || 'Unknown', true, {
+                onComplete: () => notify('SWAGGER_SPEC_RENDERED'),
+                onError: (message) => notify('SWAGGER_SPEC_ERROR', message)
+            });
         });
 
         // 告知父層 Content Script 可以發送資料
@@ -52,9 +64,11 @@ function initLoader(storageKey, isDrawer) {
 /**
  * 解析並渲染 OpenAPI / Swagger 規範
  */
-function renderSpec(content, originalUrl, isDrawer) {
+function renderSpec(content, originalUrl, isDrawer, callbacks = {}) {
+    const sequence = ++renderSequence;
     if (!content || !content.trim()) {
         showError(swaggerI18nTexts.errorEmpty || '內容為空', swaggerI18nTexts.errorEmptyDesc || '載入的檔案內容為空字串');
+        callbacks.onError?.(swaggerI18nTexts.errorEmpty || '內容為空');
         return;
     }
 
@@ -81,19 +95,25 @@ function renderSpec(content, originalUrl, isDrawer) {
             throw new Error(swaggerI18nTexts.errorMissingFields || '內容缺少 OpenAPI/Swagger 必要欄位 (openapi, swagger, info, paths)');
         }
 
-        // 初始化 Swagger UI
+        // 大文件先收合，使用者展開時再顯示內容；一般文件保留原有顯示方式。
+        const isLargeSpec = content.length >= 1024 * 1024 || Object.keys(spec.paths || {}).length >= 500;
         SwaggerUIBundle({
             spec: spec,
             dom_id: '#swagger-ui',
             deepLinking: true,
             presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
+                SwaggerUIBundle.presets.apis
             ],
             plugins: [
                 SwaggerUIBundle.plugins.DownloadUrl
             ],
-            layout: "BaseLayout"
+            layout: "BaseLayout",
+            docExpansion: isLargeSpec ? 'none' : 'list',
+            defaultModelsExpandDepth: isLargeSpec ? 0 : 1,
+            syntaxHighlight: { activated: !isLargeSpec },
+            onComplete: () => {
+                if (sequence === renderSequence) callbacks.onComplete?.();
+            }
         });
 
         // 如果是獨立分頁，顯示頂部返回與導覽工具列
@@ -104,6 +124,7 @@ function renderSpec(content, originalUrl, isDrawer) {
     } catch (error) {
         console.error('Swagger UI 渲染錯誤:', error);
         showError((swaggerI18nTexts.errorTitle || '載入錯誤') + ': ' + error.message, error.stack, content, originalUrl);
+        callbacks.onError?.(error.message);
     }
 }
 
@@ -172,8 +193,18 @@ function showError(title, message, content, originalUrl) {
             '<p>' + escapeHtml(message) + '</p>' +
         '</div>' +
         (originalUrl ? '<div class="debug-info"><p><strong>URL:</strong> ' + escapeHtml(originalUrl) + '</p></div>' : '') +
-        (content ? '<details><summary>' + escapeHtml(viewOriginalText) + '</summary><pre>' + escapeHtml(content) + '</pre></details>' : '');
-    document.getElementById('swagger-ui').innerHTML = errorHtml;
+        (content ? '<details><summary>' + escapeHtml(viewOriginalText) + '</summary><pre></pre></details>' : '');
+    const container = document.getElementById('swagger-ui');
+    container.innerHTML = errorHtml;
+    if (content) {
+        const details = container.querySelector('details');
+        const revealContent = () => {
+            if (!details.open) return;
+            details.querySelector('pre').textContent = content;
+            details.removeEventListener('toggle', revealContent);
+        };
+        details.addEventListener('toggle', revealContent);
+    }
 }
 
 function escapeHtml(text) {

@@ -9,17 +9,30 @@
     window.__SWAGGER_PREVIEW_LOADED__ = true;
 
     const SWAGGER_EXT_REGEX = /\.(ya?ml|json)($|\?|#)/i;
+    const RAW_ANCHOR_SELECTOR = 'a[href*="/raw/"], [data-testid="raw-button"], #raw-url';
     let drawerHost = null;
     let shadowRoot = null;
-    let currentLang = 'zh';
+    let currentLang = navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    let mountedRawAnchor = null;
+    let lastButtonPath = '';
     let drawerState = {
         isOpen: false,
         currentUrl: '',
         currentSpec: null,
         iframeReady: false,
+        loadId: 0,
+        sentLoadId: 0,
+        status: 'idle',
         widthPercent: 50
     };
+    const MAX_CACHED_SPECS = 5;
+    const MAX_CACHE_BYTES = 16 * 1024 * 1024;
     const specCache = new Map();
+    const pendingSpecs = new Map();
+    let specCacheBytes = 0;
+    let loadingHideTimer = null;
+    let activeWidthPercent = null;
+    const extensionOrigin = chrome.runtime.getURL('').replace(/\/$/, '');
 
     function getTexts() {
         return (typeof SWAGGER_I18N !== 'undefined' && SWAGGER_I18N[currentLang]) ? SWAGGER_I18N[currentLang] : SWAGGER_I18N.zh;
@@ -160,6 +173,9 @@
      * 注入 GitHub 原生風格按鈕
      */
     function injectButton() {
+        // document_start 時 body 尚未建立；交由 DOM observer 在建立後補上。
+        if (!document.body) return;
+        lastButtonPath = window.location.pathname;
         if (!isSwaggerFilePage()) {
             removeInjectedElements();
             return;
@@ -190,23 +206,25 @@
                     e.stopPropagation();
                     toggleDrawer();
                 });
-
-                // 若 rawAnchor 隸屬於按鈕群組，將 Swagger 按鈕插在群組前，保持群組圓角完整
-                const btnGroup = rawAnchor.closest('[data-component="ButtonGroup"], .BtnGroup');
-                const targetElement = btnGroup || rawAnchor;
-                const parent = targetElement.parentElement;
-                if (parent) {
-                    parent.insertBefore(btn, targetElement);
-                }
             } else {
                 btn.title = texts.swaggerBtnTooltip;
                 const label = btn.querySelector('#sp-btn-label');
-                if (label) label.textContent = texts.swaggerBtnText;
+                if (label && label.textContent !== texts.swaggerBtnText) label.textContent = texts.swaggerBtnText;
             }
 
+            // Raw 工具列被 React 替換時，也將既有按鈕移到新的群組前。
+            const btnGroup = rawAnchor.closest('[data-component="ButtonGroup"], .BtnGroup');
+            const targetElement = btnGroup || rawAnchor;
+            const parent = targetElement.parentElement;
+            if (parent && btn.nextElementSibling !== targetElement) {
+                parent.insertBefore(btn, targetElement);
+            }
+            mountedRawAnchor = rawAnchor;
             syncWithRawAnchor(btn, rawAnchor);
             removeFloatingButton();
         } else {
+            mountedRawAnchor = null;
+            document.getElementById('sp-github-btn')?.remove();
             injectFloatingButton();
         }
     }
@@ -219,7 +237,7 @@
         let fab = document.getElementById('sp-floating-btn');
         if (fab) {
             const label = fab.querySelector('span');
-            if (label) label.textContent = texts.floatingBtnText;
+            if (label && label.textContent !== texts.floatingBtnText) label.textContent = texts.floatingBtnText;
             return;
         }
 
@@ -270,6 +288,7 @@
     }
 
     function removeInjectedElements() {
+        mountedRawAnchor = null;
         const btn = document.getElementById('sp-github-btn');
         if (btn) btn.remove();
         const style = document.getElementById('sp-btn-styles');
@@ -657,7 +676,8 @@
      * 直觀分段寬度切換按鈕高亮同步
      */
     function updateActiveWidthButton(currentPercent) {
-        if (!shadowRoot) return;
+        if (!shadowRoot || currentPercent === activeWidthPercent) return;
+        activeWidthPercent = currentPercent;
         const widthItems = shadowRoot.querySelectorAll('.sp-width-item');
         widthItems.forEach(btn => {
             const target = parseInt(btn.dataset.width, 10);
@@ -716,6 +736,17 @@
 
         // 拖曳調整寬度
         let isDragging = false;
+        let resizeFrame = null;
+        let latestClientX = 0;
+        function flushResize() {
+            resizeFrame = null;
+            const viewportWidth = window.innerWidth;
+            const newWidth = Math.max(400, Math.min(viewportWidth * 0.96, viewportWidth - latestClientX));
+            drawer.style.width = newWidth + 'px';
+            const percent = Math.max(20, Math.min(96, Math.round((newWidth / viewportWidth) * 100)));
+            drawerState.widthPercent = percent;
+            updateActiveWidthButton(percent);
+        }
         resizer.addEventListener('mousedown', () => {
             isDragging = true;
             resizer.classList.add('dragging');
@@ -726,15 +757,17 @@
 
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
-            const newWidth = Math.max(380, Math.min(window.innerWidth * 0.96, window.innerWidth - e.clientX));
-            drawer.style.width = newWidth + 'px';
-            const percent = Math.round((newWidth / window.innerWidth) * 100);
-            drawerState.widthPercent = percent;
-            updateActiveWidthButton(percent);
+            latestClientX = e.clientX;
+            if (resizeFrame === null) resizeFrame = requestAnimationFrame(flushResize);
         });
 
         window.addEventListener('mouseup', () => {
             if (!isDragging) return;
+            // 即使 mouseup 早於下一幀，仍保留最後一次拖曳位置。
+            if (resizeFrame !== null) {
+                cancelAnimationFrame(resizeFrame);
+                flushResize();
+            }
             isDragging = false;
             resizer.classList.remove('dragging');
             drawer.style.transition = '';
@@ -749,11 +782,20 @@
 
         // 監聽 iframe ready postMessage
         window.addEventListener('message', (event) => {
+            if (event.source !== iframe.contentWindow || event.origin !== extensionOrigin) return;
             if (event.data?.type === 'SWAGGER_IFRAME_READY') {
                 drawerState.iframeReady = true;
+                drawerState.sentLoadId = 0;
                 if (drawerState.currentSpec) {
-                    sendSpecToIframe(drawerState.currentSpec, drawerState.currentUrl);
+                    sendSpecToIframe();
                 }
+            } else if (event.data?.type === 'SWAGGER_SPEC_RENDERED' && event.data.loadId === drawerState.loadId) {
+                drawerState.status = 'ready';
+                hideDrawerLoading();
+            } else if (event.data?.type === 'SWAGGER_SPEC_ERROR' && event.data.loadId === drawerState.loadId) {
+                drawerState.status = 'error';
+                hideDrawerLoading();
+                showDrawerError(getTexts().errorTitle, event.data.message);
             }
         });
 
@@ -806,61 +848,103 @@
         }
     }
 
-    /**
-     * 下載並載入 Spec 至抽屜
-     */
-    function loadSpecIntoDrawer(rawUrl, forceRefresh = false) {
-        drawerState.currentUrl = rawUrl;
-        const loading = shadowRoot.getElementById('sp-loading');
-        const errorView = shadowRoot.getElementById('sp-error');
-
-        errorView.style.display = 'none';
-
-        // 快取命中：若同一頁面未重新整理，直接以記憶體快速顯示
-        if (!forceRefresh && specCache.has(rawUrl)) {
-            const cached = specCache.get(rawUrl);
-            drawerState.currentSpec = cached;
-            sendSpecToIframe(cached, rawUrl);
-            loading.style.opacity = '0';
-            setTimeout(() => { loading.style.display = 'none'; }, 200);
-            return;
+    // 以 UTF-16 字串大小保守估算快取成本；目前顯示中的文件另由 currentSpec 保留。
+    function cacheSpec(url, content) {
+        const previous = specCache.get(url);
+        if (previous) {
+            specCacheBytes -= previous.bytes;
+            specCache.delete(url);
         }
+        const bytes = (url.length + content.length) * 2;
+        if (bytes > MAX_CACHE_BYTES) return;
+        specCache.set(url, { content, bytes });
+        specCacheBytes += bytes;
+        while (specCache.size > MAX_CACHED_SPECS || specCacheBytes > MAX_CACHE_BYTES) {
+            const oldestUrl = specCache.keys().next().value;
+            specCacheBytes -= specCache.get(oldestUrl).bytes;
+            specCache.delete(oldestUrl);
+        }
+    }
 
+    function fetchDrawerSpec(url) {
+        if (pendingSpecs.has(url)) return pendingSpecs.get(url);
+        const request = new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'fetchSwaggerContent', url }, (res) => {
+                const error = chrome.runtime.lastError;
+                if (error || !res?.ok || typeof res.content !== 'string') {
+                    reject(new Error(res?.message || error?.message || '無法下載或解析規範'));
+                } else {
+                    resolve(res.content);
+                }
+            });
+        }).finally(() => pendingSpecs.delete(url));
+        pendingSpecs.set(url, request);
+        return request;
+    }
+
+    function hideDrawerLoading() {
+        const loading = shadowRoot.getElementById('sp-loading');
+        clearTimeout(loadingHideTimer);
+        loading.style.opacity = '0';
+        loadingHideTimer = setTimeout(() => { loading.style.display = 'none'; }, 200);
+    }
+
+    /**
+     * 同文件重開保留已渲染畫面；不同文件僅接受最新一輪載入的結果。
+     */
+    async function loadSpecIntoDrawer(rawUrl, forceRefresh = false) {
+        if (!forceRefresh && drawerState.currentUrl === rawUrl &&
+            ['loading', 'rendering', 'ready'].includes(drawerState.status)) return;
+
+        const loadId = ++drawerState.loadId;
+        drawerState.currentUrl = rawUrl;
+        drawerState.currentSpec = null;
+        drawerState.status = 'loading';
+        const loading = shadowRoot.getElementById('sp-loading');
+        shadowRoot.getElementById('sp-error').style.display = 'none';
+        clearTimeout(loadingHideTimer);
         loading.style.display = 'flex';
         loading.style.opacity = '1';
 
-        // 透過 Background Service Worker 快速抓取並清理（純記憶體，零磁碟 I/O）
-        chrome.runtime.sendMessage({
-            type: 'fetchSwaggerContent',
-            url: rawUrl
-        }, (res) => {
-            if (chrome.runtime.lastError || !res || !res.ok) {
-                const errMsg = res?.message || chrome.runtime.lastError?.message || '無法下載或解析規範';
-                showDrawerError(getTexts().errorTitle, errMsg);
-                loading.style.display = 'none';
-                return;
+        try {
+            const cached = !forceRefresh && specCache.get(rawUrl);
+            let content;
+            if (cached) {
+                // Map 的插入順序即使用順序，讀取時移至最後。
+                specCache.delete(rawUrl);
+                specCache.set(rawUrl, cached);
+                content = cached.content;
+            } else {
+                content = await fetchDrawerSpec(rawUrl);
+                if (loadId !== drawerState.loadId) return;
+                cacheSpec(rawUrl, content);
             }
-
-            drawerState.currentSpec = res.content;
-            specCache.set(rawUrl, res.content);
-
-            sendSpecToIframe(res.content, rawUrl);
-            loading.style.opacity = '0';
-            setTimeout(() => { loading.style.display = 'none'; }, 200);
-        });
+            drawerState.currentSpec = content;
+            drawerState.status = 'rendering';
+            sendSpecToIframe();
+        } catch (error) {
+            if (loadId !== drawerState.loadId) return;
+            drawerState.status = 'error';
+            showDrawerError(getTexts().errorTitle, error.message);
+            hideDrawerLoading();
+        }
     }
 
     /**
      * 透過 postMessage 將 Spec 傳入 iframe
      */
-    function sendSpecToIframe(content, url) {
+    function sendSpecToIframe() {
+        if (!drawerState.iframeReady || !drawerState.currentSpec ||
+            drawerState.sentLoadId === drawerState.loadId) return;
         const iframe = shadowRoot.getElementById('sp-iframe');
         if (iframe && iframe.contentWindow) {
+            drawerState.sentLoadId = drawerState.loadId;
             iframe.contentWindow.postMessage({
                 type: 'LOAD_SPEC',
-                content: content,
-                url: url
-            }, '*');
+                content: drawerState.currentSpec,
+                url: drawerState.currentUrl,
+                loadId: drawerState.loadId
+            }, extensionOrigin);
         }
     }
 
@@ -897,38 +981,60 @@
     /**
      * 支援 GitHub Turbo (Hotwire) / PJAX 的單頁軟路由檢測
      */
-    let navDebounce = null;
+    let navigationFrame = null;
     function handleNavigation() {
-        if (navDebounce) clearTimeout(navDebounce);
-        navDebounce = setTimeout(() => {
+        // 合併同一幀的變動，不因持續渲染而一直延後按鈕掛載。
+        if (navigationFrame !== null) return;
+        navigationFrame = requestAnimationFrame(() => {
+            navigationFrame = null;
             injectButton();
-        }, 120);
+        });
     }
 
     // 註冊 GitHub SPA 生命週期事件
     document.addEventListener('turbo:render', handleNavigation);
     document.addEventListener('turbo:load', handleNavigation);
     document.addEventListener('pjax:end', handleNavigation);
+    document.addEventListener('DOMContentLoaded', handleNavigation, { once: true });
     window.addEventListener('popstate', handleNavigation);
 
     // 搭配輕量 MutationObserver，確保在 React 動態渲染完畢後按鈕順利掛載
-    const observer = new MutationObserver(() => {
-        if (isSwaggerFilePage() && !document.getElementById('sp-github-btn') && !document.getElementById('sp-floating-btn')) {
+    const observer = new MutationObserver((mutations) => {
+        if (lastButtonPath !== window.location.pathname) {
             handleNavigation();
+            return;
+        }
+        if (!isSwaggerFilePage()) return;
+        if (mountedRawAnchor?.isConnected && document.getElementById('sp-github-btn')) return;
+        if (mountedRawAnchor || !document.getElementById('sp-floating-btn')) {
+            handleNavigation();
+            return;
+        }
+        // 降級按鈕存在時只檢查新加入的子樹；無關 DOM 更新不觸發全頁搜尋。
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE &&
+                    (node.matches(RAW_ANCHOR_SELECTOR) || node.querySelector(RAW_ANCHOR_SELECTOR))) {
+                    handleNavigation();
+                    return;
+                }
+            }
         }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    // 監聽 document 可涵蓋早期 body 建立與 SPA 整段替換，已掛載後只做輕量檢查。
+    observer.observe(document, { childList: true, subtree: true });
+
+    // 按鈕先顯示，寬度與語系設定各自非同步套用。
+    handleNavigation();
 
     // 預先載入已記憶之抽屜寬度設定
     loadSavedDrawerWidth();
 
-    // 初始化語言並執行導航偵測
+    // 取得儲存的語言後只更新文字，不阻擋首次掛載。
     if (typeof getSwaggerLocale === 'function') {
         getSwaggerLocale((lang) => {
             currentLang = lang;
-            handleNavigation();
+            updateI18nLabels();
         });
-    } else {
-        handleNavigation();
     }
 })();

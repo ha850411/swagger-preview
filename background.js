@@ -40,8 +40,17 @@ chrome.webRequest.onCompleted.addListener(
     }
 );
 
+// 同一 URL 的進行中請求共用一次下載，完成或失敗後立即釋放。
+const pendingSwaggerFetches = new Map();
+function fetchSwaggerContent(yamlUrl) {
+    if (pendingSwaggerFetches.has(yamlUrl)) return pendingSwaggerFetches.get(yamlUrl);
+    const request = downloadSwaggerContent(yamlUrl).finally(() => pendingSwaggerFetches.delete(yamlUrl));
+    pendingSwaggerFetches.set(yamlUrl, request);
+    return request;
+}
+
 // 從 raw URL 下載、清理並驗證內容（不寫入 storage，供記憶體傳輸）
-async function fetchSwaggerContent(yamlUrl) {
+async function downloadSwaggerContent(yamlUrl) {
     const res = await fetch(yamlUrl);
     if (!res.ok) {
         throw new Error('下載失敗，HTTP ' + res.status);
