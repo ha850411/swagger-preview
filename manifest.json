@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Swagger Preview",
-    "version": "1.2.1",
+    "version": "1.3.0",
     "description": "透過 swagger 預覽 GitHub API",
     "icons": {
         "128": "swaggerIcon.png"
@@ -19,9 +19,29 @@
         "storage",
         "scripting",
         "activeTab",
-        "webRequest"
+        "webRequest",
+        "contextMenus"
     ],
     "host_permissions": [
         "<all_urls>"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["*://github.com/*"],
+            "js": ["i18n.js", "content.js"],
+            "run_at": "document_idle"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "i18n.js",
+                "swagger-ui.html",
+                "swagger-loader.js",
+                "swaggerIcon.png",
+                "libs/*"
+            ],
+            "matches": ["*://github.com/*"]
+        }
     ]
 }

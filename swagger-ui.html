@@ -56,13 +56,54 @@
             border-radius: 4px;
             overflow-x: auto;
         }
+        #top-nav {
+            display: none;
+            background: #24292f;
+            color: #ffffff;
+            padding: 10px 20px;
+            align-items: center;
+            justify-content: space-between;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 13px;
+            border-bottom: 1px solid #d0d7de;
+        }
+        #top-nav a {
+            color: #58a6ff;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.08);
+            transition: background 0.15s ease;
+        }
+        #top-nav a:hover {
+            background: rgba(255,255,255,0.18);
+        }
+        #top-nav .nav-url {
+            color: #8b949e;
+            font-size: 12px;
+            max-width: 500px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #top-nav .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
+    <div id="top-nav"></div>
     <div id="swagger-ui"></div>
     <script src="libs/swagger-ui-bundle.js"></script>
     <script src="libs/swagger-ui-standalone-preset.js"></script>
     <script src="libs/js-yaml.min.js"></script>
+    <script src="i18n.js"></script>
     <script src="swagger-loader.js"></script>
 </body>
 </html>
